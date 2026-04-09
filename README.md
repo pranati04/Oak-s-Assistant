@@ -1,8 +1,8 @@
-# PokeAI — BizHawk Fire Red AI Assistant
+# PokeAI — BizHawk FireRed AI Assistant
 
-A dockable sidebar AI advisor for Pokémon FireRed inside BizHawk.
-Reads live memory, understands your game state, and gives real-time
-strategy advice powered by Claude.
+A dockable sidebar AI advisor for Pokémon FireRed / LeafGreen inside BizHawk.
+Reads live game memory every 5 seconds and gives real-time strategy advice
+powered by Google Gemini.
 
 ```
 ┌─────────────────────────────────────┐
@@ -35,179 +35,162 @@ strategy advice powered by Claude.
 ## Project Structure
 
 ```
-PokeAI_BizHawk/
+PokeAI/
 ├── PokeAITool/
-│   ├── PokeAITool.cs       ← C# BizHawk External Tool (the sidebar panel)
-│   └── PokeAITool.csproj   ← .NET 8 project file
-├── ai_server.py            ← Local Python bridge (holds your API key)
-├── pokeai_hud.lua          ← Optional: in-game HUD overlay
-├── data/
-│   └── species.json        ← Full 386-species name table (see below)
+│   ├── PokeAITool.cs          ← C# BizHawk External Tool (the sidebar panel)
+│   └── PokeAITool.csproj      ← .NET Framework 4.8 project file
+├── ai_server.py               ← Local Python bridge (holds your Gemini API key)
+├── ai_server.example.py       ← Safe template — copy this and add your key
+├── pokeai_hud.lua             ← Optional: in-game HUD overlay via Lua Console
 └── README.md
 ```
 
 ---
 
-## Architecture
+## How It Works
 
 ```
 BizHawk EmuHawk.exe
   └── External Tool: PokeAITool.dll
-        │  reads memory via IMemoryApi every 5s
-        │  draws WinForms sidebar panel
+        │  reads GBA memory via IMemoryApi every 5s
+        │  follows save block pointers (save data moves in EWRAM)
+        │  species names read directly from ROM — no external files needed
         └─► HTTP POST localhost:8765/chat
                 │
         ai_server.py (Flask)
-                │  injects Anthropic API key
-                └─► api.anthropic.com/v1/messages
+                │  holds your Gemini API key
+                └─► generativelanguage.googleapis.com (Gemini)
                         │
-                    Claude Sonnet
+                    gemini-2.0-flash-lite
                         │
                     ◄── advice text
 ```
 
-The C# plugin **never holds your API key** — it only talks to
-`localhost:8765`. The Python server holds the key and forwards requests.
+The C# plugin **never holds your API key** — it only talks to `localhost:8765`.
+The Python bridge holds the key and forwards requests to Gemini.
+
+Species names are read directly out of the loaded ROM at startup — no JSON
+files or external data needed.
 
 ---
 
 ## Requirements
 
-| Component       | Version         |
-|-----------------|-----------------|
-| BizHawk         | 2.9.1+          |
-| .NET SDK        | 8.0+            |
-| Python          | 3.10+           |
-| Flask           | `pip install flask requests` |
-| Anthropic key   | claude.ai/settings |
+| Component      | Version / Notes                              |
+|----------------|----------------------------------------------|
+| BizHawk        | 2.11+ (win-x64)                              |
+| .NET SDK       | 4.8 (Framework, not .NET Core/8)             |
+| Python         | 3.10+                                        |
+| pip packages   | `pip install flask requests`                 |
+| Gemini API key | aistudio.google.com/app/apikey (free tier)   |
 
-> **OS:** Windows only (BizHawk External Tools use WinForms/.NET)
+> **OS:** Windows only — BizHawk External Tools use WinForms/.NET Framework.
 
 ---
 
-## Setup — Step by Step
+## Setup
 
-### 1. Clone / download this project
+### 1. Clone the repository
 
-```
-git clone https://github.com/you/pokeai-bizhawk
-cd pokeai-bizhawk
-```
-
-### 2. Set your Anthropic API key
-
-Option A — environment variable (recommended):
 ```powershell
-$env:ANTHROPIC_API_KEY = "sk-ant-..."
-python ai_server.py
+git clone https://github.com/YOURUSERNAME/PokeAI-BizHawk.git
+cd PokeAI-BizHawk
 ```
 
-Option B — edit `ai_server.py` directly:
+### 2. Add your Gemini API key
+
+Copy the example server file and add your key:
+
+```powershell
+Copy-Item ai_server.example.py ai_server.py
+```
+
+Open `ai_server.py` and paste your key on **line 28**:
+
 ```python
-API_KEY = "sk-ant-YOUR_KEY_HERE"   # line 20
+API_KEY = "AIzaSyYOURREALKEYHERE"
 ```
 
-### 3. Start the bridge server
+Get your free key at **aistudio.google.com/app/apikey**.
 
-```bash
+### 3. Install Python dependencies
+
+```powershell
 pip install flask requests
-python ai_server.py
 ```
 
-You should see:
-```
-PokeAI Bridge Server — listening on port 8765
-API key: ✓ set
-```
+### 4. Fix the BizHawk path in the .csproj
 
-Leave this terminal open while playing.
-
-### 4. Build the C# plugin
-
-First, edit `PokeAITool.csproj` to point to your BizHawk install:
+Open `PokeAITool/PokeAITool.csproj` and update the `BIZHAWK_HOME` property
+to match where BizHawk is installed on your machine:
 
 ```xml
-<HintPath>C:\BizHawk-2.9.1\BizHawk.Client.Common.dll</HintPath>
+<BIZHAWK_HOME>C:\BizHawk-2.11-win-x64\</BIZHAWK_HOME>
 ```
 
-Then build:
+### 5. Create the ExternalTools folder and build
+
 ```powershell
+New-Item -ItemType Directory -Force -Path "C:\BizHawk-2.11-win-x64\ExternalTools"
+
 cd PokeAITool
 dotnet build -c Release
 ```
 
-This outputs `PokeAITool.dll` into `BizHawk\ExternalTools\` automatically
-(if you set the OutputPath correctly) — or copy it manually:
+If BizHawk is closed, the build will automatically copy the DLL into
+`BizHawk\ExternalTools\`. If BizHawk is open, copy it manually:
 
+```powershell
+Copy-Item "bin\Release\net48\PokeAITool.dll" "C:\BizHawk-2.11-win-x64\ExternalTools\" -Force
 ```
-copy bin\Release\PokeAITool.dll "C:\BizHawk-2.9.1\ExternalTools\"
+
+### 6. Run
+
+Open two terminals:
+
+**Terminal 1 — AI bridge (keep open while playing):**
+```powershell
+python ai_server.py
 ```
 
-### 5. Open in BizHawk
-
-1. Start BizHawk
-2. Load your **Pokémon FireRed (US v1.0)** ROM
+**Terminal 2 — or just use BizHawk directly:**
+1. Launch BizHawk
+2. Load your **FireRed (US v1.0)** ROM — wait for the game screen
 3. Go to **Tools → External Tools → PokeAI Assistant**
-4. The sidebar appears — dock it anywhere
-5. Click **Refresh** to get your first AI analysis
+4. Click **Refresh + Get AI Advice**
 
-### 6. Optional: Lua HUD overlay
+### 7. Optional — Lua HUD overlay
 
-1. Go to **Tools → Lua Console**
-2. Click **Open Script** → select `pokeai_hud.lua`
-3. A minimal overlay appears on the game screen showing party HP + location
+For a minimal in-game party HP overlay:
+1. **Tools → Lua Console → Open Script** → select `pokeai_hud.lua`
+
+---
+
+## Memory Architecture
+
+FireRed's save data (party, badges, Pokédex, money) lives in EWRAM but
+**moves around every time a menu opens or a warp triggers**. The tool
+resolves this correctly by reading the save block pointers from IWRAM
+(which are always at fixed addresses) before reading any save data.
+
+| Data              | How accessed                                      |
+|-------------------|---------------------------------------------------|
+| Species names     | Read from ROM at `0x245EE0` — no JSON file needed |
+| Party / Badges    | Via SaveBlock pointer at IWRAM `0x03005008`        |
+| Pokédex / Money   | Via SaveBlock pointer at IWRAM `0x03005008`        |
+| Map location      | Via SaveBlock pointer at IWRAM `0x03005008`        |
+| ROM game code     | ROM `0x0000AC` — detects FireRed vs LeafGreen      |
 
 ---
 
 ## ROM Compatibility
 
-| ROM              | Status  | Notes                          |
-|------------------|---------|--------------------------------|
-| Fire Red US v1.0 | ✅ Full | All addresses verified         |
-| Fire Red US v1.1 | ⚠ Partial | Some addresses differ       |
-| Fire Red EU      | ⚠ Partial | Map/badge addresses differ  |
-| Leaf Green US    | 🔧 WIP  | Party addresses same, map differs |
-
-To add a ROM variant, update the `ADDR_*` constants in `PokeAITool.cs`
-and the address table in `pokeai_hud.lua`.
-
----
-
-## Key Memory Addresses (FireRed US v1.0)
-
-| Data          | Address      | Size | Notes                    |
-|---------------|-------------|------|--------------------------|
-| Player name   | 0x2024284   | 7 B  | FireRed charset          |
-| Badge flags   | 0x20244F2   | 1 B  | Bit 0=Boulder … Bit 7=Earth |
-| Map bank      | 0x02036DFC  | 1 B  |                          |
-| Map ID        | 0x02036DFD  | 1 B  |                          |
-| Party count   | 0x02024284  | 1 B  |                          |
-| Party slot 0  | 0x02024288  | 100B | Species=U16@+0, Lv=U8@+0x38 |
-| Money         | 0x02025A00  | 4 B  | Packed BCD               |
-| Pokédex seen  | 0x02024540  | 49B  | Bitfield, 1 bit/species  |
-| Pokédex caught| 0x02024584  | 49B  | Bitfield                 |
-
----
-
-## Expanding Species Data
-
-`PokeAITool.cs` only includes a partial species table.
-To load all 386, create `data/species.json`:
-
-```json
-{
-  "1": "Bulbasaur",
-  "2": "Ivysaur",
-  ...
-  "386": "Deoxys"
-}
-```
-
-Then load it in `BuildSpeciesTable()`:
-```csharp
-var json = File.ReadAllText("ExternalTools/data/species.json");
-return JsonSerializer.Deserialize<Dictionary<int,string>>(json);
-```
+| ROM                | Status      | Notes                              |
+|--------------------|-------------|------------------------------------|
+| FireRed US v1.0    | ✅ Working  | Primary target, fully tested       |
+| LeafGreen US v1.0  | ⚠ Partial  | ROM code detected, addresses differ |
+| FireRed US v1.1    | ⚠ Untested | Save block pointers may differ     |
+| FireRed EU         | ⚠ Untested | Save block pointers may differ     |
 
 ---
 
@@ -215,28 +198,28 @@ return JsonSerializer.Deserialize<Dictionary<int,string>>(json);
 
 | Problem | Fix |
 |---|---|
-| Tool not in menu | Make sure `PokeAITool.dll` is in `BizHawk/ExternalTools/` |
-| "No emulator connected" | Load a ROM first, then open the tool |
-| "Connection error" | Start `ai_server.py` before clicking Refresh |
-| Wrong locations | Verify you're using **FireRed US v1.0** |
-| Bad party data | Check ROM version matches address table |
-| API errors | Verify API key and billing in Anthropic console |
+| Tool not in Tools menu | Make sure `PokeAITool.dll` is in `BizHawk/ExternalTools/` and you restarted BizHawk |
+| Wrong map / "Map 0:0" | Open the ROM first, then open the tool — load order matters |
+| "Cannot find save blocks" | The game hasn't initialised yet — get past the title screen |
+| AI error / connection refused | Start `ai_server.py` before clicking Refresh |
+| Gemini 429 quota error | Free tier limit hit — wait a minute or switch to `gemini-1.5-flash` in `ai_server.py` |
+| DLL locked on build | Close BizHawk before building, then copy manually |
+| Species showing `#25` instead of name | ROM not loaded yet — Refresh after the game screen appears |
 
 ---
 
 ## Roadmap
 
-- [ ] Full 386 species table via JSON resource
-- [ ] Route encounter table (all routes, all methods)
-- [ ] Item bag reader (show held items)
-- [ ] Move reader (show party moves)
-- [ ] Leafgreen support
-- [ ] Auto-trigger AI advice on location change
+- [ ] Route encounter table (suggest catches by current route)
+- [ ] Item bag reader (show what items you already have)
+- [ ] Move reader (show party moves for better advice)
+- [ ] LeafGreen full support
+- [ ] Auto-trigger AI advice on map change
 - [ ] Export session notes to text file
 
 ---
 
 ## License
 
-MIT. Not affiliated with Nintendo, Game Freak, or Anthropic.
+MIT. Not affiliated with Nintendo, Game Freak, or Google.
 BizHawk is © its contributors (MIT License).
