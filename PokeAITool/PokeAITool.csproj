@@ -1,0 +1,66 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    BizHawk External Tool — PokeAI Assistant
+    Matches the official BizHawk ExternalTools quickstart for 2.10/2.11.
+    https://github.com/TASEmulators/BizHawk-ExternalTools/wiki/Development-quickstart
+  -->
+
+  <PropertyGroup>
+    <LangVersion>12.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <!-- BizHawk targets net48 (full .NET Framework 4.8), NOT net8.0 -->
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>PokeAITool</AssemblyName>
+    <RootNamespace>PokeAITool</RootNamespace>
+  </PropertyGroup>
+
+  <!-- BizHawk home directory -->
+  <PropertyGroup>
+    <BIZHAWK_HOME>F:\BizHawk-2.11-win-x64\</BIZHAWK_HOME>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Required for net48 targets -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+
+    <!-- Standard framework refs — provided by runtime, no HintPath needed -->
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Net.Http" />
+    <!-- JavaScriptSerializer lives here in net48 -->
+    <Reference Include="System.Web.Extensions" />
+
+    <!-- BizHawk DLLs — Private=false so they are NOT copied to output -->
+    <Reference Include="BizHawk.Client.Common"
+               HintPath="$(BIZHAWK_HOME)dll\BizHawk.Client.Common.dll"
+               Private="false" />
+
+    <!--
+      ToolFormBase, IExternalToolForm, and [ExternalTool] all live in EmuHawk.exe.
+      This is NOT a typo — the exe is the reference assembly for external tools.
+    -->
+    <Reference Include="BizHawk.Client.EmuHawk"
+               HintPath="$(BIZHAWK_HOME)EmuHawk.exe"
+               Private="false" />
+
+    <Reference Include="BizHawk.Common"
+               HintPath="$(BIZHAWK_HOME)dll\BizHawk.Common.dll"
+               Private="false" />
+
+    <Reference Include="BizHawk.Emulation.Common"
+               HintPath="$(BIZHAWK_HOME)dll\BizHawk.Emulation.Common.dll"
+               Private="false" />
+
+    <Reference Include="BizHawk.WinForms.Controls"
+               HintPath="$(BIZHAWK_HOME)dll\BizHawk.WinForms.Controls.dll"
+               Private="false" />
+  </ItemGroup>
+
+  <!-- After every build, copy DLL straight into BizHawk's ExternalTools folder -->
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll"
+          DestinationFolder="$(BIZHAWK_HOME)ExternalTools\" />
+  </Target>
+
+</Project>

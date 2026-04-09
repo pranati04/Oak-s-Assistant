@@ -1,0 +1,13 @@
+# Build output
+PokeAITool/bin/
+PokeAITool/obj/
+
+# Never commit your API key
+ai_server.py
+
+# BizHawk itself (too large, not yours to distribute)
+*.dll
+*.exe
+
+ai_server.py
+!ai_server.example.py
