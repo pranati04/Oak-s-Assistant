@@ -93,7 +93,7 @@ files or external data needed.
 ### 1. Clone the repository
 
 ```powershell
-git clone https://github.com/YOURUSERNAME/PokeAI-BizHawk.git
+git clone https://github.com/pranati04/Oak-s-Assistant.git
 cd PokeAI-BizHawk
 ```
 
